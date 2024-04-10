@@ -1,3 +1,10 @@
+# 编译静态版本
+
+```
+../configure --prefix=/path/to/install LDFLAGS="-static"
+```
+
+
 Spike RISC-V ISA Simulator
 ============================
 

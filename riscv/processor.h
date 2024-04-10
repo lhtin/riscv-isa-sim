@@ -183,6 +183,7 @@ struct state_t
       STEP_STEPPED
   } single_step;
 
+  commit_log_reg_t log_reg_read;
   commit_log_reg_t log_reg_write;
   commit_log_mem_t log_mem_read;
   commit_log_mem_t log_mem_write;
@@ -205,6 +206,7 @@ public:
   const isa_parser_t &get_isa() { return *isa; }
   const cfg_t &get_cfg() { return *cfg; }
 
+  void log_read_reg(uint64_t reg, reg_t val);
   void set_debug(bool value);
   void set_histogram(bool value);
   void enable_log_commits();

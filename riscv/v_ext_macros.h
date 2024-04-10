@@ -5,6 +5,14 @@
 
 #include "vector_unit.h"
 
+#define require_align_lmul(reg, lmul)                                          \
+  {                                                                            \
+    require_align(reg, lmul);                                                  \
+    for (unsigned i = 0; i < lmul; i += 1) {                                        \
+      READ_VREG_W(reg + i);                                                    \
+    }                                                                          \
+  }
+
 //
 // vector: masking skip helper
 //
@@ -15,6 +23,7 @@
 #define VI_LOOP_ELEMENT_SKIP(BODY) \
   VI_MASK_VARS \
   if (insn.v_vm() == 0) { \
+    require_align_lmul(0, 1); \
     BODY; \
     bool skip = ((P.VU.elt<uint64_t>(0, midx) >> mpos) & 0x1) == 0; \
     if (skip) { \
@@ -68,15 +77,15 @@ static inline bool is_overlapped_widen(const int astart, int asize,
   require_vector(true); \
   require(P.VU.vflmul <= 4); \
   require(P.VU.vsew * 2 <= P.VU.ELEN); \
-  require_align(insn.rs2(), P.VU.vflmul * 2); \
-  require_align(insn.rd(), P.VU.vflmul); \
+  require_align_lmul(insn.rs2(), P.VU.vflmul * 2); \
+  require_align_lmul(insn.rd(), P.VU.vflmul); \
   require_vm; \
 
 #define VI_WIDE_CHECK_COMMON \
   require_vector(true); \
   require(P.VU.vflmul <= 4); \
   require(P.VU.vsew * 2 <= P.VU.ELEN); \
-  require_align(insn.rd(), P.VU.vflmul * 2); \
+  require_align_lmul(insn.rd(), P.VU.vflmul * 2); \
   require_vm; \
 
 #define VI_CHECK_ST_INDEX(elt_width) \
@@ -86,8 +95,8 @@ static inline bool is_overlapped_widen(const int astart, int asize,
   require(vemul >= 0.125 && vemul <= 8); \
   reg_t UNUSED emul = vemul < 1 ? 1 : vemul; \
   reg_t flmul = P.VU.vflmul < 1 ? 1 : P.VU.vflmul; \
-  require_align(insn.rd(), P.VU.vflmul); \
-  require_align(insn.rs2(), vemul); \
+  require_align_lmul(insn.rd(), P.VU.vflmul); \
+  require_align_lmul(insn.rs2(), vemul); \
   require((nf * flmul) <= (NVPR / 4) && \
           (insn.rd() + nf * flmul) <= NVPR); \
 
@@ -115,20 +124,20 @@ static inline bool is_overlapped_widen(const int astart, int asize,
 #define VI_CHECK_MSS(is_vs1) \
   if (insn.rd() != insn.rs2()) \
     require_noover(insn.rd(), 1, insn.rs2(), P.VU.vflmul); \
-  require_align(insn.rs2(), P.VU.vflmul); \
+  require_align_lmul(insn.rs2(), P.VU.vflmul); \
   if (is_vs1) { \
     if (insn.rd() != insn.rs1()) \
       require_noover(insn.rd(), 1, insn.rs1(), P.VU.vflmul); \
-    require_align(insn.rs1(), P.VU.vflmul); \
+    require_align_lmul(insn.rs1(), P.VU.vflmul); \
   } \
 
 #define VI_CHECK_SSS(is_vs1) \
   require_vm; \
   if (P.VU.vflmul > 1) { \
-    require_align(insn.rd(), P.VU.vflmul); \
-    require_align(insn.rs2(), P.VU.vflmul); \
+    require_align_lmul(insn.rd(), P.VU.vflmul); \
+    require_align_lmul(insn.rs2(), P.VU.vflmul); \
     if (is_vs1) { \
-      require_align(insn.rs1(), P.VU.vflmul); \
+      require_align_lmul(insn.rs1(), P.VU.vflmul); \
     } \
   }
 
@@ -138,7 +147,7 @@ static inline bool is_overlapped_widen(const int astart, int asize,
   float vemul = is_mask_ldst ? 1 : ((float)veew / P.VU.vsew * P.VU.vflmul); \
   reg_t emul = vemul < 1 ? 1 : vemul; \
   require(vemul >= 0.125 && vemul <= 8); \
-  require_align(insn.rd(), vemul); \
+  require_align_lmul(insn.rd(), vemul); \
   require((nf * emul) <= (NVPR / 4) && \
           (insn.rd() + nf * emul) <= NVPR); \
   require(veew <= P.VU.ELEN); \
@@ -149,14 +158,14 @@ static inline bool is_overlapped_widen(const int astart, int asize,
 
 #define VI_CHECK_DSS(is_vs1) \
   VI_WIDE_CHECK_COMMON; \
-  require_align(insn.rs2(), P.VU.vflmul); \
+  require_align_lmul(insn.rs2(), P.VU.vflmul); \
   if (P.VU.vflmul < 1) { \
     require_noover(insn.rd(), P.VU.vflmul * 2, insn.rs2(), P.VU.vflmul); \
   } else { \
     require_noover_widen(insn.rd(), P.VU.vflmul * 2, insn.rs2(), P.VU.vflmul); \
   } \
   if (is_vs1) { \
-    require_align(insn.rs1(), P.VU.vflmul); \
+    require_align_lmul(insn.rs1(), P.VU.vflmul); \
     if (P.VU.vflmul < 1) { \
       require_noover(insn.rd(), P.VU.vflmul * 2, insn.rs1(), P.VU.vflmul); \
     } else { \
@@ -166,9 +175,9 @@ static inline bool is_overlapped_widen(const int astart, int asize,
 
 #define VI_CHECK_DDS(is_rs) \
   VI_WIDE_CHECK_COMMON; \
-  require_align(insn.rs2(), P.VU.vflmul * 2); \
+  require_align_lmul(insn.rs2(), P.VU.vflmul * 2); \
   if (is_rs) { \
-     require_align(insn.rs1(), P.VU.vflmul); \
+     require_align_lmul(insn.rs1(), P.VU.vflmul); \
     if (P.VU.vflmul < 1) { \
       require_noover(insn.rd(), P.VU.vflmul * 2, insn.rs1(), P.VU.vflmul); \
     } else { \
@@ -181,19 +190,20 @@ static inline bool is_overlapped_widen(const int astart, int asize,
   if (insn.rd() != insn.rs2()) \
     require_noover(insn.rd(), P.VU.vflmul, insn.rs2(), P.VU.vflmul * 2); \
   if (is_vs1) \
-    require_align(insn.rs1(), P.VU.vflmul); \
+    require_align_lmul(insn.rs1(), P.VU.vflmul); \
 
 #define VI_CHECK_REDUCTION(is_wide) \
   require_vector(true); \
   if (is_wide) { \
     require(P.VU.vsew * 2 <= P.VU.ELEN); \
   } \
-  require_align(insn.rs2(), P.VU.vflmul); \
+  require_align_lmul(insn.rs2(), P.VU.vflmul); \
+  require_align_lmul(insn.rs1(), 1); \
   require(P.VU.vstart->read() == 0); \
 
 #define VI_CHECK_SLIDE(is_over) \
-  require_align(insn.rs2(), P.VU.vflmul); \
-  require_align(insn.rd(), P.VU.vflmul); \
+  require_align_lmul(insn.rs2(), P.VU.vflmul); \
+  require_align_lmul(insn.rd(), P.VU.vflmul); \
   require_vm; \
   if (is_over) \
     require(insn.rd() != insn.rs2()); \
@@ -1347,7 +1357,7 @@ reg_t index[P.VU.vlmax]; \
   const reg_t baseAddr = RS1; \
   const reg_t vd = insn.rd(); \
   const reg_t len = insn.v_nf() + 1; \
-  require_align(vd, len); \
+  require_align_lmul(vd, len); \
   const reg_t elt_per_reg = P.VU.vlenb / sizeof(elt_width ## _t); \
   const reg_t size = len * elt_per_reg; \
   if (P.VU.vstart->read() < size) { \
@@ -1378,7 +1388,7 @@ reg_t index[P.VU.vlmax]; \
   const reg_t baseAddr = RS1; \
   const reg_t vs3 = insn.rd(); \
   const reg_t len = insn.v_nf() + 1; \
-  require_align(vs3, len); \
+  require_align_lmul(vs3, len); \
   const reg_t size = len * P.VU.vlenb; \
   \
   if (P.VU.vstart->read() < size) { \
@@ -1409,8 +1419,8 @@ reg_t index[P.VU.vlmax]; \
   reg_t from = P.VU.vsew / div; \
   require(from >= e8 && from <= e64); \
   require(((float)P.VU.vflmul / div) >= 0.125 && ((float)P.VU.vflmul / div) <= 8 ); \
-  require_align(insn.rd(), P.VU.vflmul); \
-  require_align(insn.rs2(), P.VU.vflmul / div); \
+  require_align_lmul(insn.rd(), P.VU.vflmul); \
+  require_align_lmul(insn.rs2(), P.VU.vflmul / div); \
   if ((P.VU.vflmul / div) < 1) { \
     require_noover(insn.rd(), P.VU.vflmul, insn.rs2(), P.VU.vflmul / div); \
   } else { \

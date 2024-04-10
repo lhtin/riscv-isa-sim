@@ -596,6 +596,7 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
 
   serialized = false;
 
+  log_reg_read.clear();
   log_reg_write.clear();
   log_mem_read.clear();
   log_mem_write.clear();
@@ -604,6 +605,14 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
   last_inst_flen = 0;
 
   elp = elp_t::NO_LP_EXPECTED;
+}
+
+void processor_t::log_read_reg(uint64_t reg, reg_t val) {
+  if (reg == 0)
+    return;
+
+  assert((reg >> 4) < 32);
+  state.log_reg_read[reg] = {val, 0};
 }
 
 void processor_t::set_debug(bool value)
@@ -1010,12 +1019,15 @@ void processor_t::disasm(insn_t insn)
 
     unsigned max_xlen = isa->get_max_xlen();
 
-    s << "core " << std::dec << std::setfill(' ') << std::setw(3) << id
-      << std::hex << ": 0x" << std::setfill('0') << std::setw(max_xlen / 4)
-      << zext(state.pc, max_xlen) << " (0x" << std::setw(8) << bits << ") "
-      << disassembler->disassemble(insn) << std::endl;
-
-    debug_output_log(&s);
+    s << "core " << std::dec << std::setfill (' ') << std::setw (3) << id
+      << std::hex << ": " << state.prv << " 0x" << std::setfill ('0')
+      << std::setw (max_xlen / 4) << zext (state.pc, max_xlen) << " (0x"
+      << std::setw (insn.length() * 2) << bits << ") "
+      << disassembler->disassemble (insn)
+      << std::endl;
+    if (state.prv == 0) {
+      debug_output_log(&s);
+    }
 
     last_pc = state.pc;
     last_bits = bits;

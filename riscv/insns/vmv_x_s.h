@@ -2,6 +2,7 @@
 require_vector(true);
 require(insn.v_vm() == 1);
 reg_t sew = P.VU.vsew;
+require_align_lmul(insn.rs2(), 1);
 reg_t rs2_num = insn.rs2();
 reg_t res;
 

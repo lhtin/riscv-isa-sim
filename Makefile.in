@@ -336,7 +336,7 @@ test_outs += $$($(2)_test_outs)
 install_config_hdrs += $$(if $$($(2)_install_config_hdr),$(1),)
 install_hdrs += $$(addprefix $(src_dir)/$(1)/, $$($(2)_install_hdrs))
 install_libs += $$(if $$($(2)_install_lib),lib$(1).a,)
-install_libs += $$(if $$($(2)_install_shared_lib),lib$(1).so,)
+#install_libs += $$(if $$($(2)_install_shared_lib),lib$(1).so,)
 install_exes += $$($(2)_install_prog_exes)
 install_pcs  += $$(if $$($(2)_install_pcs),riscv-$(1).pc,)
 

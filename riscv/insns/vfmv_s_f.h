@@ -5,6 +5,7 @@ require((P.VU.vsew == e16 && p->extension_enabled(EXT_ZVFH)) ||
         (P.VU.vsew == e32 && p->extension_enabled('F')) ||
         (P.VU.vsew == e64 && p->extension_enabled('D')));
 require(STATE.frm->read() < 0x5);
+require_align_lmul(insn.rd(), 1);
 
 reg_t vl = P.VU.vl->read();
 

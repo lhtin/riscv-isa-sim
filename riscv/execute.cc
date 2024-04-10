@@ -9,6 +9,7 @@
 
 static void commit_log_reset(processor_t* p)
 {
+  p->get_state()->log_reg_read.clear();
   p->get_state()->log_reg_write.clear();
   p->get_state()->log_mem_read.clear();
   p->get_state()->log_mem_write.clear();
@@ -64,12 +65,17 @@ static void commit_log_print_insn(processor_t *p, reg_t pc, insn_t insn)
 {
   FILE *log_file = p->get_log_file();
 
+  auto& read_regs = p->get_state()->log_reg_read;
   auto& reg = p->get_state()->log_reg_write;
   auto& load = p->get_state()->log_mem_read;
   auto& store = p->get_state()->log_mem_write;
   int priv = p->get_state()->last_inst_priv;
   int xlen = p->get_state()->last_inst_xlen;
   int flen = p->get_state()->last_inst_flen;
+
+  if (priv != 0) {
+      return;
+  }
 
   // print core id on all lines so it is easy to grep
   fprintf(log_file, "core%4" PRId32 ": ", p->get_id());
@@ -117,7 +123,7 @@ static void commit_log_print_insn(processor_t *p, reg_t pc, insn_t insn)
     }
 
     if (!show_vec && (is_vreg || is_vec)) {
-        fprintf(log_file, " e%ld %s%ld l%ld",
+        fprintf(log_file, " sew e%ld lmul %s%ld vl %ld",
                 (long)p->VU.vsew,
                 p->VU.vflmul < 1 ? "mf" : "m",
                 p->VU.vflmul < 1 ? (long)(1 / p->VU.vflmul) : (long)p->VU.vflmul,
@@ -127,9 +133,9 @@ static void commit_log_print_insn(processor_t *p, reg_t pc, insn_t insn)
 
     if (!is_vec) {
       if (prefix == 'c')
-        fprintf(log_file, " c%d_%s ", rd, csr_name(rd));
+        fprintf(log_file, " w_c%d_%s ", rd, csr_name(rd));
       else
-        fprintf(log_file, " %c%-2d ", prefix, rd);
+        fprintf(log_file, " w_%c%-2d ", prefix, rd);
       if (is_vreg)
         commit_log_print_value(log_file, size, &p->VU.elt<uint8_t>(rd, 0));
       else
@@ -137,13 +143,54 @@ static void commit_log_print_insn(processor_t *p, reg_t pc, insn_t insn)
     }
   }
 
+  for (auto item : read_regs) {
+    int reg = item.first >> 4;
+    char prefix = ' ';
+    int size;
+    bool is_vreg = false;
+    int lmul = p->VU.vflmul < 1 ? 1 : (int)p->VU.vflmul;
+    switch (item.first & 0xf) {
+    case 0:
+      size = xlen;
+      prefix = 'x';
+      break;
+    case 1:
+      size = flen;
+      prefix = 'f';
+      break;
+    case 2:
+      size = p->VU.VLEN;
+      prefix = 'v';
+      is_vreg = true;
+      break;
+    case 4:
+      size = xlen;
+      prefix = 'c';
+      break;
+    default:
+      assert("can't been here" && 0);
+      break;
+    }
+    if (prefix == 'c')
+      fprintf(log_file, " r_c%d_%s ", reg, csr_name(reg));
+    else
+      fprintf(log_file, " r_%c%-2d ", prefix, reg);
+    if (is_vreg) {
+      commit_log_print_value(log_file, size, &p->VU.elt<uint8_t>(reg, 0));
+    } else {
+      commit_log_print_value(log_file, size, item.second.v);
+    }
+  }
+
   for (auto item : load) {
-    fprintf(log_file, " mem ");
+    fprintf(log_file, " r_mem ");
     commit_log_print_value(log_file, xlen, std::get<0>(item));
+    fprintf(log_file, " ");
+    commit_log_print_value(log_file, std::get<2>(item) << 3, std::get<1>(item));
   }
 
   for (auto item : store) {
-    fprintf(log_file, " mem ");
+    fprintf(log_file, " w_mem ");
     commit_log_print_value(log_file, xlen, std::get<0>(item));
     fprintf(log_file, " ");
     commit_log_print_value(log_file, std::get<2>(item) << 3, std::get<1>(item));
@@ -195,6 +242,9 @@ static inline reg_t execute_insn_logged(processor_t* p, reg_t pc, insn_fetch_t f
       }
       throw;
   } catch(...) {
+    if (p->get_log_commits_enabled()) {
+      commit_log_print_insn(p, pc, fetch.insn);
+    }
     throw;
   }
   p->update_histogram(pc);

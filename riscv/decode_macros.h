@@ -10,12 +10,26 @@
 #include "softfloat_types.h"
 #include "specialize.h"
 
+#ifndef DECODE_MACRO_USAGE_LOGGED
+#define DECODE_MACRO_USAGE_LOGGED 0
+#endif
+
 // helpful macros, etc
 #define MMU (*p->get_mmu())
 #define STATE (*p->get_state())
 #define FLEN (p->get_flen())
-#define CHECK_REG(reg) ((void) 0)
-#define READ_REG(reg) (CHECK_REG(reg), STATE.XPR[reg])
+#define CHECK_REG(reg) ((void)0)
+#define READ_REG_W(reg, value)                                                 \
+  (DECODE_MACRO_USAGE_LOGGED ? p->log_read_reg((reg << 4), value) : (void)0,   \
+   value)
+#define READ_FREG_W(reg, value)                                                \
+  (DECODE_MACRO_USAGE_LOGGED ? p->log_read_reg((reg << 4) | 1, value)          \
+                             : (void)0,                                        \
+   value)
+#define READ_VREG_W(reg)                                                       \
+  (DECODE_MACRO_USAGE_LOGGED ? p->log_read_reg(((reg) << 4) | 2, 0) : (void)0, \
+   reg)
+#define READ_REG(reg) (READ_REG_W((reg), STATE.XPR[reg]))
 #define READ_FREG(reg) STATE.FPR[reg]
 #define RD READ_REG(insn.rd())
 #define RS1 READ_REG(insn.rs1())
